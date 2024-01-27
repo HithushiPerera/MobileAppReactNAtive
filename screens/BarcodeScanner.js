@@ -1,18 +1,42 @@
-import React, { useState, useRef } from 'react';
-import { View, Dimensions, Text } from 'react-native';
-import { Button, Dialog } from '@rneui/themed';
-import styles from './../styles/Style'
+import React, { useState, useEffect } from 'react';
+import { View, Dimensions, Text, FlatList, Button, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import styles from '../styles/Style'
 import { RNCamera } from 'react-native-camera';
 
-function BarcodeScan({ navigation }) {
+function BarcodeScan({route}) {
 
-    const [barValue, setBarValue] = useState('')
-    const [barType, setBarType] = useState('')
+    const [barcodes, setBarcodes] = useState(new Set());
+    const navigation = useNavigation();
     const [flash, setFlash] = useState(false)
-    const [showDialog, setShowDialog] = useState(false)
+
+    useEffect(() => {
+        return () => {
+            setBarcodes(new Set());
+        };
+    },[]);
+    
+    const handleBarcodes = (barcode) => {
+        const barcodeArray = Array.from(barcodes);
+        if (!barcodeArray.includes(barcode)) {
+            setBarcodes(new Set([...barcodeArray, barcode]));
+        }
+    };
+
+    const navigateData = () => {
+        const scannedData = Array.from(barcodes);
+        const sourceScreen = route.params.sourceScreen;
+
+        if (sourceScreen) {
+            navigation.navigate(sourceScreen, {scannedData});
+        }
+        // navigation.navigate('ParcelD', { scannedData: Array.from(barcodes),
+        //     // clearData: () => setBarcodes(new Set()), 
+        // })
+    }
 
     return (
-    <View style={styles.container}>
+    <View style={styles1.container}>
         <RNCamera
             ref={ref => {this.camera = ref;}}
             captureAudio={false}
@@ -22,16 +46,15 @@ function BarcodeScan({ navigation }) {
             mirrorImage={false}
             // onBarCodeRead={readBarcode}
             onGoogleVisionBarcodesDetected={({ barcodes }) => {
-                console.log(barcodes, barcodes.length)
+
+                //console.log(barcodes, barcodes.length)
                 if (barcodes.length > 0){
-                    setBarValue(barcodes[0].data)
-                    setBarType(barcodes[0].format)
-                    setShowDialog(true)
+                    const barcode = barcodes[0].data;
+                    handleBarcodes(barcode);
                 }
             }}
             style={{
                 flex: 1,
-                justifyContent: 'flex-end',
                 alignItems: 'center',
                 height: Dimensions.get('window').height,
                 width: Dimensions.get('window').width
@@ -50,30 +73,50 @@ function BarcodeScan({ navigation }) {
                 buttonNegative: 'Cancel',
             }}
         />
-        <Button
-            title={`Flash ${flash ? 'OFF' : 'ON'}`}
-            onPress={() => setFlash(!flash)}
-            icon={{ ...styles.iconButtonHome, size:25, name: 'flash' }}
-            iconContainerStyle={styles.iconButtonHomeContainer}
-            titleStyle={{ ...styles.titleButtonHome, fontSize: 20 }}
-            buttonStyle={{...styles.buttonHome, height: 50}}
-            containerStyle={{...styles.buttonHomeContainer, marginTop:20, marginBottom:10}}
-        />
-        <Dialog
-        isVisible={showDialog}
-        onBackdropPress={() => setShowDialog(!showDialog)}>
-            <Dialog.Title titleStyle={{color:'#000', fontSize:25}} title="Scanned Barcode:"/>
-            <Text style={{color:'#000', fontSize: 20}}>
-                {`Data: ${barValue}\nFormat: ${barType}`}
-            </Text>
-            <Dialog.Actions>
-                <Dialog.Button title="Scan Again" onPress={() => {
-                    setShowDialog(false)
-                }}/>
-            </Dialog.Actions>
-        </Dialog>
+            <FlatList
+                data={Array.from(barcodes)}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={({ item, index }) => (
+                    <Text key={index} style={styles.text}>{item}</Text>
+                )}
+            />
+            
+            <Pressable style={styles1.btn2} onPress={navigateData}>
+                <View style={styles1.view3}>
+                    <Text style={{ fontWeight: "600", color:'#fff', fontSize:16 }}>
+                        Stop
+                    </Text>
+                </View>
+            </Pressable>
     </View>
     );
 }
 
 export default BarcodeScan
+
+const styles1 = StyleSheet.create({
+    container: { 
+        flex: 1, 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        margin: 30,
+    },
+    text: {
+        fontSize:20,
+        fontWeight:'bold',
+        color:'#000'
+    },
+    btn2:{
+        backgroundColor: "#f96163",
+        padding: 12,
+        borderRadius: 16,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    view3:{
+        height: 22,
+        width:200,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+});
