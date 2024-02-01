@@ -1,6 +1,7 @@
 import { Image, StyleSheet,Text,TouchableOpacity,View, TextInput, Alert, ActivityIndicator } from "react-native";
 import React, {useState, useEffect} from "react";
 import SQLite from 'react-native-sqlite-storage';
+import { user_signup } from "../api/Authenticate";
 
 const db = SQLite.openDatabase(
     {
@@ -66,30 +67,19 @@ const SignupScreen = ({navigation,route}) => {
                         [androidId,courier]
                     );
                 })
-                fetch("http://220.247.207.187/Authentication/NewMobile",{
-                    method: "POST",
-                    headers:{
-                        Accept: "application/json",
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        androidId: androidId,
-                        courierId: courier,
-                    }),
+                user_signup({
+                    androidId: androidId,
+                    courierId: courier,
                 })
-                .then((response) => {
-                    if (response.status === 200) {
-                        return response.json();
+                .then(result => {
+                    if (result.status == 200) {
+                        navigation.navigate('Welcome');
                     } else {
-                        throw new Error('Invalid response status: ' + response.status);
+                        console.error('Error: Register Failed',result.statusText);
                     }
                 })
-                .then((responseData) => {
-                    console.log(responseData);
-                    navigation.navigate('Welcome');
-                })
-                .catch((error) => {
-                    console.error('Error processing response: ', error.message);
+                .catch(err => {
+                    console.error(err);
                 })
                 .finally(() => {
                     setLoading(false); // Set loading back to false when authentication is complete
@@ -113,11 +103,8 @@ const SignupScreen = ({navigation,route}) => {
                 style={styles.input}
                 placeholder='Enter your NIC number'
                 placeholderTextColor={'#3c444c'}
-                
                 onChangeText={(value) => setCourier(value)}
             />
-            {/* <Text style={styles.text2}>{courier}</Text>
-            <Text>{ androidId }</Text> */}
             {loading && <ActivityIndicator size="large" color="#f96163"/>}
             <TouchableOpacity style={styles.button}
                 onPress={onPressHandler}>

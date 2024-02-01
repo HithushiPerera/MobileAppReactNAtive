@@ -2,6 +2,7 @@ import { Image, StyleSheet,Text,TouchableOpacity,View, ActivityIndicator } from 
 import React,{useEffect,useState} from "react";
 import DeviceInfo from "react-native-device-info";
 import SQLite from 'react-native-sqlite-storage';
+import { user_login } from "../api/Authenticate";
 
 const db = SQLite.openDatabase(
     {
@@ -20,7 +21,6 @@ const WelcomeScreen = ({navigation, route}) => {
         const getDeviceId = async () => {
             try {
                 const androidId = await DeviceInfo.getAndroidId();
-                console.log(androidId);
                 setDevice(androidId);
             } catch (error) {
                 console.error('Error getting Android ID: ', error);
@@ -33,41 +33,29 @@ const WelcomeScreen = ({navigation, route}) => {
         // Update the token column in the Register table based on androidId
         db.transaction((tx) => {
           tx.executeSql('UPDATE Register SET Token = ? WHERE Device = ?', [token, androidId], (_, results) => {
-            console.log('Token updated in the Register table');
+            //console.log('Token updated in the Register table');
           });
         });
       };
 
     const goHome = () => {
         setLoading(true);
-        fetch("http://220.247.207.187/Authentication/AuthenticateMobile",{
-            method: "POST",
-            headers:{
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                androidId: device,
-            }),
+        user_login({
+            androidId:device
         })
-        .then((response) => {
-            if (response.status == 200) {
-                return response.json();
+        .then(result => {
+            if (result.status == 200) {
+                const accessToken = result.data.accessToken;
+                // Save the token to SQLite database
+                saveTokenToDatabase(accessToken);
+                navigation.navigate('Operation');
             } else {
-                throw new Error('Inavalid Login status: ' +response.status);
+                console.error('Error: Authentication Failed',result.statusText);
+                navigation.navigate('SignUp',{androidId:device});
             }
         })
-        .then((responseData) => {
-            const accessToken = responseData.accessToken;
-
-            // Save the token to SQLite database
-            saveTokenToDatabase(accessToken);
-            console.log('Access Token:', accessToken);
-            navigation.navigate('Operation');
-        })
-        .catch((error) => {
-            console.error('Error processing response: ', error.message);
-            navigation.navigate('SignUp',{androidId:device});
+        .catch(err => {
+            console.error(err);
         })
         .finally(() => {
             setLoading(false); // Set loading back to false when authentication is complete

@@ -68,7 +68,7 @@ const OperationList = ({navigation}) => {
                     </Pressable>
                 </View>
                 <View style={styles.view2}>
-                    <Pressable style={styles.btn2}>
+                    <Pressable style={styles.btn2} onPress={() => handleNavigation("MailbagDBulk")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Mailbag Bulk
@@ -78,7 +78,7 @@ const OperationList = ({navigation}) => {
                             </Text>
                         </View>
                     </Pressable>
-                    <Pressable style={styles.btn2}>
+                    <Pressable style={styles.btn2} onPress={() => handleNavigation("MailbagCBulk")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Mailbag Bulk

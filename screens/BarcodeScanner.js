@@ -1,34 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { View, Dimensions, Text, FlatList, Button, Pressable, StyleSheet } from 'react-native';
+import { View, Dimensions, Text, FlatList, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import styles from '../styles/Style'
 import { RNCamera } from 'react-native-camera';
 
 function BarcodeScan({route}) {
 
-    const [barcodes, setBarcodes] = useState(new Set());
+    const [scannedData, setScannedData] = useState([]);
     const navigation = useNavigation();
-    const [flash, setFlash] = useState(false)
+    const [isCooldown, setIsCooldown] = useState(false);
 
     useEffect(() => {
         return () => {
-            setBarcodes(new Set());
+            setScannedData([]);
         };
     },[]);
     
+    const getCurrentTime = () => new Date().toISOString();
+
     const handleBarcodes = (barcode) => {
-        const barcodeArray = Array.from(barcodes);
-        if (!barcodeArray.includes(barcode)) {
-            setBarcodes(new Set([...barcodeArray, barcode]));
+        if (!isCooldown) {
+            setIsCooldown(true);
+            setScannedData((prevData) => [
+                ...prevData,
+                { barcode, datetime: getCurrentTime() },
+            ]);
+            setTimeout(() => {
+                setIsCooldown(false);
+            }, 2000);
         }
+        //const currentTime = new Date().toISOString();
     };
 
     const navigateData = () => {
-        const scannedData = Array.from(barcodes);
+        //const scannedData = Array.from(barcodes);
         const sourceScreen = route.params.sourceScreen;
 
         if (sourceScreen) {
-            navigation.navigate(sourceScreen, {scannedData});
+            navigation.navigate(sourceScreen, { scannedData: scannedData.map((data) => data.barcode) });
         }
         // navigation.navigate('ParcelD', { scannedData: Array.from(barcodes),
         //     // clearData: () => setBarcodes(new Set()), 
@@ -42,7 +51,7 @@ function BarcodeScan({route}) {
             captureAudio={false}
             autoFocus={RNCamera.Constants.AutoFocus.on}
             defaultTouchToFocus
-            flashMode={flash ? RNCamera.Constants.FlashMode.torch : RNCamera.Constants.FlashMode.off}
+            //flashMode={flash ? RNCamera.Constants.FlashMode.torch : RNCamera.Constants.FlashMode.off}
             mirrorImage={false}
             // onBarCodeRead={readBarcode}
             onGoogleVisionBarcodesDetected={({ barcodes }) => {
@@ -74,10 +83,10 @@ function BarcodeScan({route}) {
             }}
         />
             <FlatList
-                data={Array.from(barcodes)}
+                data={scannedData}
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={({ item, index }) => (
-                    <Text key={index} style={styles.text}>{item}</Text>
+                    <Text key={index} style={styles.text}> Barcode: {item.barcode}, Datetime: {item.datetime}</Text>
                 )}
             />
             

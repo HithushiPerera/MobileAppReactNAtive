@@ -11,6 +11,8 @@ import OperationList from './screens/OperationList';
 import ParcelCollect from './screens/ParcelCollection';
 import MailbagDelivery from './screens/MailbagDelivery';
 import MailbagCollection from './screens/MailbagCollection';
+import MailbagDBulk from './screens/MailbagDBulk';
+import MailbagCBulk from './screens/MailbagCBulk';
 const Stack = createNativeStackNavigator();
 
 function App() {
@@ -27,6 +29,8 @@ function App() {
         <Stack.Screen name='ParcelC' component={ParcelCollect}/>
         <Stack.Screen name='MailbagD' component={MailbagDelivery}/>
         <Stack.Screen name='MailbagC' component={MailbagCollection}/>
+        <Stack.Screen name='MailbagDBulk' component={MailbagDBulk}/>
+        <Stack.Screen name='MailbagCBulk' component={MailbagCBulk}/>
       </Stack.Navigator>
     </NavigationContainer>
   );
