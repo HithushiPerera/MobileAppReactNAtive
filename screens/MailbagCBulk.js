@@ -1,18 +1,24 @@
-import { Image, SafeAreaView, ScrollView, StyleSheet,Text,View, Pressable, TextInput, PermissionsAndroid } from "react-native";
+import { Animated, Easing, Image, SafeAreaView, ScrollView, StyleSheet,Text,View, Pressable, TextInput, PermissionsAndroid, ActivityIndicator } from "react-native";
 import React, {useEffect, useState}  from "react";
 import {SelectList} from 'react-native-dropdown-select-list'
 import BarcodeScan from "./BarcodeScanner";
 import Geolocation from '@react-native-community/geolocation'
+import { get_mailbag_status, get_banks } from "../api/Utility";
 
 const MailbagCBulk = ({navigation, route}) => {
+    const [loading, setLoading] = useState(false);
+    const fadeValue = new Animated.Value(1);
+    const [status, setStatus] = useState([]);
     const [select,SetSelect] = useState('');
+    const [banks, setBanks] = useState([]);
+    const [selectedBank, setSelectedBank] = useState('');
+    const [remark, setRemark] = useState('');
     const [date, setDate] = useState(null);
     const [time, setTime] = useState(null);
-    const [location, setLocation] = useState(false);
-    const status = [
-        {key:'MC',value:'Mailbag Collected'},
-        {key:'UCM',value:'Unable to Collect Mailbag'},
-    ];
+    const [location, setLocation] = useState('');
+    const [currentLongitude, setCurrentLongitude] = useState('');
+    const [currentLatitude, setCurrentLatitude] = useState('');
+
     const { scannedData } = route.params || { scannedData: [] };
 
     const requestLocationPermission = async () => {
@@ -27,12 +33,9 @@ const MailbagCBulk = ({navigation, route}) => {
                     buttonPositive: 'OK',
                 },
             );
-            console.log('granted', granted);
             if (granted === 'granted') {
-              console.log('You can use Geolocation');
               return true;
             } else {
-              console.log('You cannot use Geolocation');
               return false;
             }
         } catch (err) {
@@ -41,8 +44,38 @@ const MailbagCBulk = ({navigation, route}) => {
     }
 
     useEffect(() => {
-      
-    },[]);
+        if (loading) {
+            Animated.timing(fadeValue, {
+                toValue: 0.5,
+                duration: 100,
+                easing: Easing.linear,
+                useNativeDriver: false,
+            }).start();
+        } else {
+            Animated.timing(fadeValue, {
+                toValue: 1,
+                duration: 100,
+                easing: Easing.linear,
+                useNativeDriver: false,
+            }).start();
+        }
+        get_banks().then((response) => {
+            let formattedBanks = response.data.map((item) => {
+               return {key: item.bankCode, value: item.bankName}
+            })
+            setBanks(formattedBanks);
+        });
+        get_mailbag_status().then((response) => {
+            let mailbagStatus = response.data.map((item) => ({
+                key: item.statusCode, 
+                value: item.statusDescription
+            }));
+            const desiredStatusCodes = ["MC", "UCM"];
+
+            mailbagStatus = mailbagStatus.filter((status) => desiredStatusCodes.includes(status.key));
+            setStatus(mailbagStatus);
+        });
+    }, [loading]);
 
     const getCurrentTime = () => {
         let today = new Date();
@@ -59,12 +92,14 @@ const MailbagCBulk = ({navigation, route}) => {
     const getCurrentLocation = () => {
         const result = requestLocationPermission();
         result.then(res => {
-          console.log('res is:', res);
           if (res) {
             Geolocation.getCurrentPosition(
               position => {
-                console.log(position);
                 setLocation(position);
+                const latitude = position.coords.latitude;
+                const logitude = position.coords.longitude;
+                setCurrentLatitude(latitude);
+                setCurrentLongitude(logitude);
               },
               error => {
                 // See error code charts below.
@@ -75,7 +110,6 @@ const MailbagCBulk = ({navigation, route}) => {
             );
           }
         });
-        console.log(location);
       };
 
     const onPressScan = () => {
@@ -83,13 +117,18 @@ const MailbagCBulk = ({navigation, route}) => {
         let time = getCurrentTime();
         setTime(time);
         setDate(date);
-        navigation.navigate("Barcode Scanner",{
-            sourceScreen: 'MailbagCBulk',
-        });
         getCurrentLocation();
+        setTimeout(() => {
+            navigation.navigate("Barcode Scanner",{
+                sourceScreen: 'MailbagCBulk',
+            },
+            setLoading(false));
+        }, 200);
     }
+
     return(
         <SafeAreaView style={styles.body}>
+            <Animated.View style={[styles.container,{opacity:fadeValue}]}>
             <View style={styles.imgView}>   
                 <Image 
                 style={styles.logo}
@@ -99,7 +138,7 @@ const MailbagCBulk = ({navigation, route}) => {
 				<Text style={styles.text}> Mailbag Collection Bulk</Text>
 			</View>
             <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.titleText}>Barcode</Text>
+                <Text style={styles.titleText}>TrackingNo</Text>
                 <View style={styles.view2}>
                     <View style={styles.btn1}>
                         <View style={styles.view3}>
@@ -128,9 +167,6 @@ const MailbagCBulk = ({navigation, route}) => {
                         dropdownTextStyles={{fontWeight: "600",textAlign:'center',color:'#000'}}
                         defaultOption={{ key:'MC',value:'Mailbag Collected' }}
                     /> 
-                   
-                    
-                
                 <Text style={styles.titleText}>Date & Time</Text>
                 <View style={styles.view2}>
                     <View style={styles.btn1}>
@@ -152,10 +188,25 @@ const MailbagCBulk = ({navigation, route}) => {
                 {scannedData.map((barcode, index) => (
                     <Text key={index} style={styles.text2}>{barcode}</Text>
                 ))}
+                <Text style={styles.titleText}>Select Bank</Text>
+                    <SelectList 
+                        setSelected={(val) => setSelectedBank(val)} 
+                        data={banks} 
+                        save="value"
+                        boxStyles={{borderRadius:16, padding:12,backgroundColor:'#fff',borderColor:'#fff',marginBottom:5,}} //override default styles
+                        inputStyles={{  fontWeight: "600",textAlign:'center',fontSize:16,color:'#000'}}
+                        dropdownStyles={{borderColor:'#fff', backgroundColor:'#fff'}}
+                        dropdownTextStyles={{fontWeight: "600",textAlign:'center',color:'#000'}}
+                        //onSelect={() => Alert(selectedBank)}
+                        defaultOption={{ key:'BOC',value:'BANK OF CEYLON' }}
+                    /> 
                 <Text style={styles.titleText}>Remark</Text>
                 <View style={styles.view2}>
-                        <TextInput style={styles.input} placeholder="Enter comment" >
-                        </TextInput>
+                    <TextInput style={styles.input} 
+                            placeholder="Enter comment"
+                            onChangeText={(value) => setRemark(value)} 
+                            placeholderTextColor={'#3c444c'}
+                            color={'#000'}/>
                 </View>
                 <View style={{marginBottom:30}}></View>
                 <View style={styles.view2}>
@@ -178,6 +229,12 @@ const MailbagCBulk = ({navigation, route}) => {
                 </View>
                 <View style={{marginBottom:10}}></View>
             </ScrollView>
+            </Animated.View>
+            {loading && (
+                <View style={styles.loader}>
+                    <ActivityIndicator size='large' color='#f96163'/>
+                </View>
+            )}
         </SafeAreaView>
     );
 };
@@ -188,6 +245,9 @@ const styles = StyleSheet.create({
     body:{
         flex:1,
         marginHorizontal:16,
+    },
+    container: {
+        flex: 1,
     },
     imgView:{
         justifyContent: 'center',
@@ -251,7 +311,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         flex: 1,
-        textAlign:'center',
         fontWeight:'600',
         fontSize:16,
     },
@@ -269,5 +328,18 @@ const styles = StyleSheet.create({
         fontSize:16,
         fontWeight:'600',
         color:'#000',
+    },
+    loader: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        marginLeft: -25, // Adjust based on loader size
+        marginTop: -25, // Adjust based on loader size
+        backgroundColor: '#000',
+        borderRadius: 8,
+        padding: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
     },
 });

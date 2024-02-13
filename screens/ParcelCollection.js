@@ -1,22 +1,154 @@
-import { Image, SafeAreaView, ScrollView, StyleSheet,Text,View, Pressable, TextInput } from "react-native";
+import { Animated, Easing, Image, SafeAreaView, ScrollView, StyleSheet,Text,View, Pressable, TextInput, PermissionsAndroid, ActivityIndicator, Alert } from "react-native";
 import React, {useState, useEffect}  from "react";
 import {SelectList} from 'react-native-dropdown-select-list'
+import Geolocation from '@react-native-community/geolocation';
+import { get_parcel_status } from "../api/Utility";
+import { parcel_transaction } from "../api/Transaction";
+import {openDatabase} from 'react-native-sqlite-storage';
+import CheckNetwork from "../components/CheckInternet";
+
+let db = openDatabase(
+    {
+        name:'MobileApp.db',
+        location: 'default',
+    },
+    () => { },
+    (error) => {console.log(error)}
+);
 
 const ParcelCollect = ({navigation, route}) => {
+    const [loading, setLoading] = useState(false);
+    const fadeValue = new Animated.Value(1);
+    const [status, setStatus] = useState([]);
+    const [device,setDevice] = useState('');
+    const [courier, setCourier] = useState('');
     const [select,SetSelect] = useState('');
+    const [remark, setRemark] = useState('');
     const [date, setDate] = useState(null);
     const [time, setTime] = useState(null);
-    const [logitide, setLogitude] = useState('');
-    const [latitude, setLatitude] = useState('');
-    const status = [
-        {key:'PC',value:'Parcel Collected'},
-        {key:'UCP',value:'Unable to Collect Parcel'},
-    ];
+    const [dateTime, setDateTime] = useState(null);
+    const [location, setLocation] = useState();
+    const [currentLongitude, setCurrentLongitude] = useState();
+    const [currentLatitude, setCurrentLatitude] = useState();
+    const [isConnected, setIsConnected] = useState(false);
+
     const { scannedData } = route.params || { scannedData: [] };
 
+    const requestLocationPermission = async () => {
+        try{
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+                {
+                    title: 'Geolocation Permission',
+                    message: 'Can we access your location?',
+                    buttonNeutral: 'Ask Me Later',
+                    buttonNegative: 'Cancel',
+                    buttonPositive: 'OK',
+                },
+            );
+            if (granted === 'granted') {
+              return true;
+            } else {
+              return false;
+            }
+        } catch (err) {
+            return false;
+        }
+    }
+
     useEffect(() => {
-      
-    },[]);
+        if (loading) {
+            Animated.timing(fadeValue, {
+                toValue: 0.5,
+                duration: 100,
+                easing: Easing.linear,
+                useNativeDriver: false,
+            }).start();
+        } else {
+            Animated.timing(fadeValue, {
+                toValue: 1,
+                duration: 100,
+                easing: Easing.linear,
+                useNativeDriver: false,
+            }).start();
+        }
+        get_parcel_status().then((response) => {
+            let parcelStatus = response.data.map((item) => ({
+                key: item.statusCode, 
+                value: item.statusDescription
+            }));
+            const desiredStatusCodes = ["PCC", "UCP"];
+
+            parcelStatus = parcelStatus.filter((status) => desiredStatusCodes.includes(status.key));
+            setStatus(parcelStatus);
+        });
+    }, [loading]);
+
+    const getData = () => {
+        db.transaction(tx => {
+          tx.executeSql("SELECT * FROM tblParcelT where CollectionOrDelivery = 'C'", [], (tx, results) => {
+            var records = [];
+            for (let i = 0; i < results.rows.length; ++i) {
+                records.push({
+                    id: 0,
+                    trackingNo: results.rows.item(i).TrackingNo,
+                    status: results.rows.item(i).Status,
+                    date: results.rows.item(i).Date,
+                    longitude: results.rows.item(i).Longitude,
+                    latitude: results.rows.item(i).Latitude,
+                    remark: results.rows.item(i).Remark,
+                    rowVersion: 0,
+                    collectionOrDelivery: results.rows.item(i).CollectionOrDelivery,
+                    androidId: results.rows.item(i).AndroidId,
+                    courierId: results.rows.item(i).CourierId,
+                    notDeliveredStatus: results.rows.item(i).NotDeliveredStatus,
+                });
+            }
+            console.log(records);
+            parcel_transaction(records)
+            .then(result => {
+                if (result.status == 200) {
+                    navigation.navigate('Operation');
+                } else {
+                    console.error('Error: Transaction Failed', result.status);
+                }
+            })
+            .catch(err => {
+                console.error('Error: Parcel Transaction ', err);
+            })
+            .finally(() => {
+                setLoading(false);
+            })
+          });
+        });
+    };
+
+    const clearData = () => {
+        setDate(null);
+        setTime(null);
+        setRemark(null);
+        setCurrentLatitude(null);
+        setCurrentLongitude(null);
+        selectedBank(null)
+        SetSelect(null);
+        setDateTime(null);
+    }
+
+    const getDeviceId = () => {
+        db.transaction(tx => {
+            tx.executeSql('SELECT name, courier, token FROM tblUser', [], (tx, results) => {
+              var temp = results.rows.length;
+                if (temp > 0) {
+                    var Device = results.rows.item(0).name;
+                    var Token = results.rows.item(0).token;
+                    var Courier = results.rows.item(0).courier;
+                    console.log(results.rows.item(0));
+                    setDevice(Device);
+                    setCourier(Courier);
+                }
+            });
+        });
+    }
 
     const getCurrentTime = () => {
         let today = new Date();
@@ -31,19 +163,88 @@ const ParcelCollect = ({navigation, route}) => {
         return today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
     }
 
+    const getCurrentLocation = () => {
+        const result = requestLocationPermission();
+        result.then(res => {
+          if (res) {
+            Geolocation.getCurrentPosition(
+              position => {
+                setLocation(position);
+                const latitude = position.coords.latitude;
+                const logitude = position.coords.longitude;
+                setCurrentLatitude(latitude);
+                setCurrentLongitude(logitude);
+              },
+              error => {
+                // See error code charts below.
+                console.log(error.code, error.message);
+                setLocation(false);
+              },
+              {enableHighAccuracy: true, timeout: 15000, maximumAge: 10000},
+            );
+          }
+        });
+    };
+
     const onPressScan = () => {
-        let date = getCurrentDate();   
+        setLoading(true)
+        let date = getCurrentDate();     
         let time = getCurrentTime();
+        let dateTime = new Date().toISOString();
         setTime(time);
         setDate(date);
-        navigation.navigate("Barcode Scanner",{
-            sourceScreen: 'ParcelC',
-        });
-        //getCurrentLocation();
+        setDateTime(dateTime);
+        getCurrentLocation();
+        getDeviceId();
+        setTimeout(() => {
+            navigation.navigate("Barcode Scanner",{
+                sourceScreen: 'ParcelC',
+            },
+            setLoading(false));
+        }, 200);
+    }
+
+    const onSubmit = async () => {
+        try {
+            setLoading(true);
+            await db.transaction(async(tx) => {
+                await tx.executeSql(
+                    "INSERT INTO tblParcelT (TrackingNo, Status, Date, Longitude, Latitude, Remark, CollectionOrDelivery, NotDeliveredStatus, AndroidId, CourierId) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    [scannedData.toString(),select,dateTime,currentLongitude,currentLatitude,remark,'C','',device,courier],
+                    (tx, results) => {
+                        //console.log('Results', results.rowsAffected);
+                        if (results.rowsAffected > 0) {
+                            Alert.alert(
+                                'Success',
+                                'Data Added Successfully',
+                                [
+                                  {
+                                    text: 'Ok',
+                                    onPress: () => console.warn('Ok Pressed!'),
+                                  },
+                                ],
+                                {cancelable: false},
+                            );
+                            clearData();
+                        } else alert('Failed');
+                    },
+                    error => {
+                        console.log(error);
+                    },
+                );
+            })
+            isConnected ? (
+                getData()
+            ) : null
+        } catch (error) {
+            console.log(error);
+        }
     }
 
     return(
-        <SafeAreaView style={styles.body}>
+        <SafeAreaView style = {{flex:1}}>
+            <View style={styles.body}>
+             <Animated.View style={[styles.container,{opacity:fadeValue}]}>
             <View style={styles.imgView}>   
                 <Image 
                 style={styles.logo}
@@ -53,7 +254,7 @@ const ParcelCollect = ({navigation, route}) => {
 				<Text style={styles.text}> Parcel Collection</Text>
 			</View>
             <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.titleText}>Barcode</Text>
+                <Text style={styles.titleText}>TrackingNo</Text>
                 <View style={styles.view2}>
                     <View style={styles.btn1}>
                         <View style={styles.view3}>
@@ -71,20 +272,16 @@ const ParcelCollect = ({navigation, route}) => {
                     </Pressable>
                 </View>
                 <Text style={styles.titleText}>Select Status</Text>
-                
                     <SelectList 
                         setSelected={(val) => SetSelect(val)} 
                         data={status} 
-                        save="value"
+                        save="key"
                         boxStyles={{borderRadius:16, padding:12,backgroundColor:'#fff',borderColor:'#fff',marginBottom:5,}} //override default styles
                         inputStyles={{  fontWeight: "600",textAlign:'center',fontSize:16,color:'#000'}}
                         dropdownStyles={{borderColor:'#fff', backgroundColor:'#fff'}}
                         dropdownTextStyles={{fontWeight: "600",textAlign:'center',color:'#000'}}
-                        defaultOption={{ key:'PC',value:'Parcel Collected' }}
+                        defaultOption={{ key:'PCC',value:'Parcel Collection Completed' }}
                     />
-                   
-                    
-                
                 <Text style={styles.titleText}>Date & Time</Text>
                 <View style={styles.view2}>
                     <View style={styles.btn1}>
@@ -104,12 +301,15 @@ const ParcelCollect = ({navigation, route}) => {
                 </View>
                 <Text style={styles.titleText}>Remark</Text>
                 <View style={styles.view2}>
-                        <TextInput style={styles.input} placeholder="Enter comment" >
-                        </TextInput>
+                    <TextInput style={styles.input} 
+                            placeholder="Enter comment"
+                            onChangeText={(value) => setRemark(value)} 
+                            placeholderTextColor={'#3c444c'}
+                            color={'#000'}/>
                 </View>
                 <View style={{marginBottom:30}}></View>
                 <View style={styles.view2}>
-                    <Pressable style={styles.btn2}>
+                    <Pressable style={styles.btn2} onPress={onSubmit}>
                         <View style={styles.view3}>
                             <Text style={styles.text1}>
                                 SUBMIT
@@ -128,6 +328,15 @@ const ParcelCollect = ({navigation, route}) => {
                 </View>
                 <View style={{marginBottom:10}}></View>
             </ScrollView>
+            </Animated.View>
+            {loading && (
+                <View style={styles.loader}>
+                    <ActivityIndicator size='large' color='#f96163'/>
+                </View>
+            )}
+            </View>
+            <CheckNetwork isConnected={isConnected}
+                setIsConnected={setIsConnected} />
         </SafeAreaView>
     );
 };
@@ -138,6 +347,9 @@ const styles = StyleSheet.create({
     body:{
         flex:1,
         marginHorizontal:16,
+    },
+    container: {
+        flex: 1,
     },
     imgView:{
         justifyContent: 'center',
@@ -201,7 +413,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         flex: 1,
-        textAlign:'center',
         fontWeight:'600',
         fontSize:16,
     },
@@ -219,5 +430,18 @@ const styles = StyleSheet.create({
         fontSize:16,
         fontWeight:'600',
         color:'#000',
+    },
+    loader: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        marginLeft: -25, // Adjust based on loader size
+        marginTop: -25, // Adjust based on loader size
+        backgroundColor: '#000',
+        borderRadius: 8,
+        padding: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
     },
 });

@@ -2,7 +2,7 @@ import ApiManager from "./ApiManager";
 
 export const mailbag_transaction = async data => {
     try {
-        const result = await ApiManager("/Transaction/SetCollectionDelivery",{
+        const result = await ApiManager("/Transaction/SetCollectionDeliveryTestV1",{
             method:"POST",
             headers:{
                 Accept: "application/json",
@@ -18,7 +18,7 @@ export const mailbag_transaction = async data => {
 
 export const parcel_transaction = async data => {
     try {
-        const result = await ApiManager("/Transaction/SetCollectionDeliveryV2",{
+        const result = await ApiManager("/Transaction/SetCollectionDeliveryTestV2",{
             method:"POST",
             headers:{
                 Accept: "application/json",

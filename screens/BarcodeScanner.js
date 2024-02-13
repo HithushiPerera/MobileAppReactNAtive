@@ -3,45 +3,65 @@ import { View, Dimensions, Text, FlatList, Pressable, StyleSheet } from 'react-n
 import { useNavigation } from '@react-navigation/native';
 import styles from '../styles/Style'
 import { RNCamera } from 'react-native-camera';
+import {openDatabase} from 'react-native-sqlite-storage';
+
+let db = openDatabase(
+    {
+        name:'MobileApp.db',
+        location: 'default',
+    },
+    () => { },
+    (error) => {console.log(error)}
+);
 
 function BarcodeScan({route}) {
 
-    const [scannedData, setScannedData] = useState([]);
+    const [barcodes, setBarcodes] = useState(new Set());
     const navigation = useNavigation();
-    const [isCooldown, setIsCooldown] = useState(false);
 
     useEffect(() => {
+        createTable();
         return () => {
-            setScannedData([]);
+            setBarcodes(new Set());
         };
     },[]);
     
+    const createTable = () => {
+        db.transaction(txn => {
+            txn.executeSql(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='tblTracking'",
+              [],
+              (tx, res) => {
+                //console.log('item:', res.rows.length);
+                if (res.rows.length == 0) {
+                  txn.executeSql('DROP TABLE IF EXISTS tblTracking', []);
+                  txn.executeSql(
+                    'CREATE TABLE IF NOT EXISTS tblTracking(id INTEGER PRIMARY KEY AUTOINCREMENT, TrackingNo VARCHAR(10), Date TEXT)',
+                    [],
+                  );
+                }
+              },
+              error => {
+                console.log(error);
+              },
+            );
+        });
+    }
     const getCurrentTime = () => new Date().toISOString();
 
     const handleBarcodes = (barcode) => {
-        if (!isCooldown) {
-            setIsCooldown(true);
-            setScannedData((prevData) => [
-                ...prevData,
-                { barcode, datetime: getCurrentTime() },
-            ]);
-            setTimeout(() => {
-                setIsCooldown(false);
-            }, 2000);
+        const barcodeArray = Array.from(barcodes);
+        if (!barcodeArray.includes(barcode)) {
+            setBarcodes(new Set([...barcodeArray, barcode]));
         }
-        //const currentTime = new Date().toISOString();
     };
 
     const navigateData = () => {
-        //const scannedData = Array.from(barcodes);
         const sourceScreen = route.params.sourceScreen;
 
         if (sourceScreen) {
-            navigation.navigate(sourceScreen, { scannedData: scannedData.map((data) => data.barcode) });
+            navigation.navigate(sourceScreen, { scannedData: Array.from(barcodes) });
         }
-        // navigation.navigate('ParcelD', { scannedData: Array.from(barcodes),
-        //     // clearData: () => setBarcodes(new Set()), 
-        // })
     }
 
     return (
@@ -65,7 +85,7 @@ function BarcodeScan({route}) {
             style={{
                 flex: 1,
                 alignItems: 'center',
-                height: Dimensions.get('window').height,
+                height: 100,
                 width: Dimensions.get('window').width
             }}
             type={RNCamera.Constants.Type.back}
@@ -83,10 +103,10 @@ function BarcodeScan({route}) {
             }}
         />
             <FlatList
-                data={scannedData}
+                data={Array.from(barcodes)}
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={({ item, index }) => (
-                    <Text key={index} style={styles.text}> Barcode: {item.barcode}, Datetime: {item.datetime}</Text>
+                    <Text key={index} style={styles.text}>{item}</Text>
                 )}
             />
             

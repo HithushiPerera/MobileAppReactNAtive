@@ -1,10 +1,22 @@
-import { Animated, Easing, Image, SafeAreaView, ScrollView, StyleSheet,Text,TouchableOpacity,View, Pressable, ActivityIndicator } from "react-native";
+import { Animated, Easing, Image, SafeAreaView, ScrollView, StyleSheet,Text,View, Pressable, ActivityIndicator } from "react-native";
 import React,{useState, useEffect} from "react";
+import Header from "../components/Header";
+import {openDatabase} from 'react-native-sqlite-storage';
+
+let db = openDatabase(
+    {
+        name:'MobileApp.db',
+        location: 'default',
+    },
+    () => { },
+    (error) => {console.log(error)}
+);
 
 
 const OperationList = ({navigation}) => {
     const [loading, setLoading] = useState(false);
     const fadeValue = new Animated.Value(1);
+    const [isConnected, setIsConnected] = useState(false);
 
     const handleNavigation = (screen) => {
         setLoading(true);
@@ -16,6 +28,8 @@ const OperationList = ({navigation}) => {
     };
 
     useEffect(() => {
+        createTable();
+        createTableParcel();
         if (loading) {
             Animated.timing(fadeValue, {
                 toValue: 0.5,
@@ -33,8 +47,53 @@ const OperationList = ({navigation}) => {
         }
     }, [loading]);
 
+    const createTable = () => {
+        db.transaction(txn => {
+            txn.executeSql(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='tblMailbagT'",
+              [],
+              (tx, res) => {
+                //console.log('item:', res.rows.length);
+                if (res.rows.length == 0) {
+                  txn.executeSql('DROP TABLE IF EXISTS tblMailbagT', []);
+                  txn.executeSql(
+                    'CREATE TABLE IF NOT EXISTS tblMailbagT(id INTEGER PRIMARY KEY AUTOINCREMENT, TrackingNo VARCHAR(10), Status VARCHAR(5), Date TEXT, Longitude float, Latitude float, Remark VARCHAR(100), CollectionOrDelivery VARCHAR(2), CollectionPointName VARCHAR(5), AndroidId VARCHAR(20), CourierId VARCHAR(20))',
+                    [],
+                  );
+                }
+              },
+              error => {
+                console.log(error);
+              },
+            );
+        });
+    }
+
+    const createTableParcel = () => {
+        db.transaction(txn => {
+            txn.executeSql(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='tblParcelT'",
+              [],
+              (tx, res) => {
+                //console.log('item:', res.rows.length);
+                if (res.rows.length == 0) {
+                  txn.executeSql('DROP TABLE IF EXISTS tblParcelT', []);
+                  txn.executeSql(
+                    'CREATE TABLE IF NOT EXISTS tblParcelT(id INTEGER PRIMARY KEY AUTOINCREMENT, TrackingNo VARCHAR(10), Status VARCHAR(5), Date TEXT, Longitude float, Latitude float, Remark VARCHAR(100), CollectionOrDelivery VARCHAR(2), NotDeliveredStatus VARCHAR(5), AndroidId VARCHAR(20), CourierId VARCHAR(20))',
+                    [],
+                  );
+                }
+              },
+              error => {
+                console.log(error);
+              },
+            );
+        });
+    }
+
     return(
         <SafeAreaView style={styles.body}>
+            <Header headerText={"bars"} headerIcon={"bell-o"}/>
             <Animated.View style={[styles.container,{opacity:fadeValue}]}>
             <View style={styles.imgView}>   
                 <Image 
@@ -68,7 +127,7 @@ const OperationList = ({navigation}) => {
                     </Pressable>
                 </View>
                 <View style={styles.view2}>
-                    <Pressable style={styles.btn2} onPress={() => handleNavigation("MailbagDBulk")}>
+                    <Pressable style={styles.btn1} onPress={() => handleNavigation("MailbagDBulk")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Mailbag Bulk
@@ -78,7 +137,7 @@ const OperationList = ({navigation}) => {
                             </Text>
                         </View>
                     </Pressable>
-                    <Pressable style={styles.btn2} onPress={() => handleNavigation("MailbagCBulk")}>
+                    <Pressable style={styles.btn1} onPress={() => handleNavigation("MailbagCBulk")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Mailbag Bulk
@@ -99,7 +158,7 @@ const OperationList = ({navigation}) => {
                     </Pressable>
                 </View>
                 <View style={styles.view2}>
-                    <Pressable style={styles.btn3} onPress={() => handleNavigation("ParcelD")}>
+                    <Pressable style={styles.btn2} onPress={() => handleNavigation("ParcelD")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Parcel
@@ -109,7 +168,7 @@ const OperationList = ({navigation}) => {
                             </Text>
                         </View>
                     </Pressable>
-                    <Pressable style={styles.btn3} onPress={() => handleNavigation("ParcelC")}>
+                    <Pressable style={styles.btn2} onPress={() => handleNavigation("ParcelC")}>
                         <View style={styles.view3}>
                             <Text style={{ fontWeight: "600", color:"#fff", fontSize:18 }}>
                                 Parcel

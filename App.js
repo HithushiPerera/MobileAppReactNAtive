@@ -19,8 +19,6 @@ function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{headerShown:false}} initialRouteName="Welcome">
-        <Stack.Screen name="Home" component={Home}/>
-        <Stack.Screen name="Barcode Generator" component={BarcodeGenerator} />
         <Stack.Screen name="Barcode Scanner" component={BarcodeScan} />
         <Stack.Screen name="ParcelD" component={ParcelDelivery}/>
         <Stack.Screen name='Welcome' component={WelcomeScreen}/>

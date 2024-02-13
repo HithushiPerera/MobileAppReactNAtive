@@ -3,23 +3,26 @@ import React, {useEffect, useState}  from "react";
 import {SelectList} from 'react-native-dropdown-select-list'
 import BarcodeScan from "./BarcodeScanner";
 import Geolocation from '@react-native-community/geolocation'
-import { get_mailbag_status, get_banks } from "../api/Utility";
+import { get_banks } from "../api/Utility";
+import { get_mailbag_status } from "../api/Utility";
 
-const MailbagDBulk = ({navigation, route}) => {
+const Card = ({navigation, route}) => {
     const [loading, setLoading] = useState(false);
     const fadeValue = new Animated.Value(1);
-    const [status, setStatus] = useState([]);
     const [select,SetSelect] = useState('');
-    const [banks, setBanks] = useState([]);
-    const [selectedBank, setSelectedBank] = useState('');
     const [remark, setRemark] = useState('');
     const [date, setDate] = useState(null);
     const [time, setTime] = useState(null);
     const [location, setLocation] = useState('');
-    const [currentLongitude, setCurrentLongitude] = useState('');
-    const [currentLatitude, setCurrentLatitude] = useState('');
-
+    const [currentLongitude, setCurrentLongitude] = useState('...');
+    const [currentLatitude, setCurrentLatitude] = useState('...');
+    const status = [
+        {key:'MD',value:'Mailbag Delivered'},
+        {key:'UDM',value:'Unable to Deliver Mailbag'},
+    ];
     const { scannedData } = route.params || { scannedData: [] };
+
+ 
 
     const requestLocationPermission = async () => {
         try{
@@ -42,7 +45,6 @@ const MailbagDBulk = ({navigation, route}) => {
             return false;
         }
     }
-
     useEffect(() => {
         if (loading) {
             Animated.timing(fadeValue, {
@@ -59,22 +61,6 @@ const MailbagDBulk = ({navigation, route}) => {
                 useNativeDriver: false,
             }).start();
         }
-        get_banks().then((response) => {
-            let formattedBanks = response.data.map((item) => {
-               return {key: item.bankCode, value: item.bankName}
-            })
-            setBanks(formattedBanks);
-        });
-        get_mailbag_status().then((response) => {
-            let mailbagStatus = response.data.map((item) => ({
-                key: item.statusCode, 
-                value: item.statusDescription
-            }));
-            const desiredStatusCodes = ["MD", "UDM"];
-
-            mailbagStatus = mailbagStatus.filter((status) => desiredStatusCodes.includes(status.key));
-            setStatus(mailbagStatus);
-        });
     }, [loading]);
 
     const getCurrentTime = () => {
@@ -95,6 +81,7 @@ const MailbagDBulk = ({navigation, route}) => {
           if (res) {
             Geolocation.getCurrentPosition(
               position => {
+                console.log(position);
                 setLocation(position);
                 const latitude = position.coords.latitude;
                 const logitude = position.coords.longitude;
@@ -121,12 +108,11 @@ const MailbagDBulk = ({navigation, route}) => {
         getCurrentLocation();
         setTimeout(() => {
             navigation.navigate("Barcode Scanner",{
-                sourceScreen: 'MailbagDBulk',
+                sourceScreen: 'MailbagD',
             },
             setLoading(false));
         }, 200);
     }
-
     return(
         <SafeAreaView style={styles.body}>
             <Animated.View style={[styles.container,{opacity:fadeValue}]}>
@@ -136,16 +122,16 @@ const MailbagDBulk = ({navigation, route}) => {
                 source={require("../img/logo.png")}/>
             </View>
             <View style={{  alignItems:'center' , marginBottom:10}}>
-				<Text style={styles.text}> Mailbag Delivery Bulk</Text>
+				<Text style={styles.text}> Mailbag Delivery</Text>
 			</View>
             <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.titleText}>TrackingNo</Text>
+                <Text style={styles.titleText}>Barcode</Text>
                 <View style={styles.view2}>
                     <View style={styles.btn1}>
                         <View style={styles.view3}>
-                            {scannedData.length > 0 &&(
-                            <Text style={styles.text2}>{scannedData[scannedData.length - 1]}</Text>
-                            )}
+                            {scannedData.map((barcode, index) => (
+                            <Text key={index} style={styles.text2}>{barcode}</Text>
+                            ))}
                         </View>
                     </View>
                     <Pressable style={styles.btn2} onPress={onPressScan }>
@@ -184,25 +170,20 @@ const MailbagDBulk = ({navigation, route}) => {
                         </View>
                     </View>
                 </View>
-                <Text style={styles.titleText}>Scanned Data:</Text>
-                {scannedData.map((barcode, index) => (
-                    <Text key={index} style={styles.text2}>{barcode}</Text>
-                ))}
                 <Text style={styles.titleText}>Select Bank</Text>
                     <SelectList 
-                        setSelected={(val) => setSelectedBank(val)} 
-                        data={banks} 
+                        setSelected={(val) => SetSelect(val)} 
+                        //data={status} 
                         save="value"
                         boxStyles={{borderRadius:16, padding:12,backgroundColor:'#fff',borderColor:'#fff',marginBottom:5,}} //override default styles
                         inputStyles={{  fontWeight: "600",textAlign:'center',fontSize:16,color:'#000'}}
                         dropdownStyles={{borderColor:'#fff', backgroundColor:'#fff'}}
                         dropdownTextStyles={{fontWeight: "600",textAlign:'center',color:'#000'}}
-                        //onSelect={() => Alert(selectedBank)}
-                        defaultOption={{ key:'BOC',value:'BANK OF CEYLON' }}
+                        defaultOption={{ key:'BOC',value:'Bank Of Ceylon' }}
                     /> 
                 <Text style={styles.titleText}>Remark</Text>
                 <View style={styles.view2}>
-                    <TextInput style={styles.input} 
+                        <TextInput style={styles.input} 
                             placeholder="Enter comment"
                             onChangeText={(value) => setRemark(value)} 
                             placeholderTextColor={'#3c444c'}
@@ -213,7 +194,7 @@ const MailbagDBulk = ({navigation, route}) => {
                     <Pressable style={styles.btn2}>
                         <View style={styles.view3}>
                             <Text style={styles.text1}>
-                                SUBMIT
+                                SUBMIT : {currentLatitude}
                             </Text>
                         </View>
                     </Pressable>
@@ -222,7 +203,7 @@ const MailbagDBulk = ({navigation, route}) => {
                     <Pressable style={styles.btn3}>
                         <View style={styles.view3}>
                             <Text style={styles.text1}>
-                                CANCEL
+                                CANCEL : {currentLongitude}
                             </Text>
                         </View>
                     </Pressable>
@@ -239,7 +220,7 @@ const MailbagDBulk = ({navigation, route}) => {
     );
 };
 
-export default MailbagDBulk;
+export default Card;
 
 const styles = StyleSheet.create({
     body:{
@@ -308,8 +289,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#fff",
         padding: 12,
         borderRadius: 16,
-        alignItems: "center",
-        justifyContent: "center",
         flex: 1,
         fontWeight:'600',
         fontSize:16,
